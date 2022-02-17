@@ -159,8 +159,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     template.submit((Callable) () -> {
                         try {
                             return send(mqDestination, topicName, messageSub, mqProperties.isFlatMessage());
-                        }
-                        catch (Exception e) {
+                        } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     });
@@ -193,13 +192,11 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             }
 
             callback.commit();
-        }
-        catch (SQLException e){
+        } catch (SQLException e) {
             logger.error(e.getMessage(), e);
             logger.error("DELETE语句执行出错，程序异常终止！！！");
             System.exit(-1);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             logger.error(e.getMessage(), e);
             callback.rollback();
         } finally {
@@ -316,35 +313,28 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         String database = flatMessagePart.getDatabase();
         String table = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
         String cluster = this.mqProperties.getCkClusterName();
-        if(!isExist(database, table)){
-            return ;
+        if (!isExist(database, table)) {
+            return;
         }
         String prefix = "alter table " + database + "." + table + " on cluster " + cluster + " delete where ";
         for (Map<String, String> data : dataList) {
             StringBuilder sqlBuilder = new StringBuilder();
             sqlBuilder.append(prefix);
             for (String pkName : pkNames) {  //添加主键筛选条件
-                sqlBuilder.append(pkName).append("=? and ");
+                sqlBuilder.append(pkName).append("='" + data.get(pkName) + "' and ");
             }
             int len = sqlBuilder.length();
             sqlBuilder.delete(len - 4, len);
-            logger.warn("执行DELETE，SQL："+sqlBuilder);
-            PreparedStatement preparedStatement = ClickHouseClient.connection.prepareStatement(sqlBuilder.toString());
-            for (int j = 0; j < pkNames.size(); j++) {  //填充主键筛选参数
-                String pkName = pkNames.get(j);
-                String pkValue = data.get(pkName);
-                preparedStatement.setObject(j+1, pkValue);
-            }
-            preparedStatement.execute();
+            logger.warn("执行DELETE，SQL：" + sqlBuilder);
+            ClickHouseClient.executeSQL(sqlBuilder.toString());
         }
     }
 
     private boolean isExist(String database, String table) throws SQLException {
-        String checkSQL="show tables in "+ database +" like '"+ table +"';";
-        ResultSet rs=ClickHouseClient.executeSQL(checkSQL);
+        String checkSQL = "show tables in " + database + " like '" + table + "';";
+        ResultSet rs = ClickHouseClient.executeSQL(checkSQL);
         return rs.next();
     }
-
 
     private List<Future> produce(List<ProducerRecord<String, byte[]>> records) {
         List<Future> futures = new ArrayList<>();
