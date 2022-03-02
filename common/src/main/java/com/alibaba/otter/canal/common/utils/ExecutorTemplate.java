@@ -72,7 +72,7 @@ public class ExecutorTemplate {
                 result.add(future.get());
             } catch (Throwable e) {
                 exception = new RuntimeException(e);
-                // 如何一个future出现了异常，就退出
+                // 如果其中一个future出现了异常，就退出
                 break;
             }
         }

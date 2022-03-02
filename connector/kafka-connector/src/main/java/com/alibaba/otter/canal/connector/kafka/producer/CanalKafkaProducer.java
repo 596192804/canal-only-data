@@ -1,26 +1,5 @@
 package com.alibaba.otter.canal.connector.kafka.producer;
 
-import java.io.File;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-
-import com.alibaba.otter.canal.connector.kafka.util.ClickHouseClient;
-import org.apache.commons.lang.StringUtils;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.alibaba.otter.canal.common.utils.ExecutorTemplate;
@@ -34,9 +13,28 @@ import com.alibaba.otter.canal.connector.core.util.Callback;
 import com.alibaba.otter.canal.connector.core.util.CanalMessageSerializerUtil;
 import com.alibaba.otter.canal.connector.kafka.config.KafkaConstants;
 import com.alibaba.otter.canal.connector.kafka.config.KafkaProducerConfig;
+import com.alibaba.otter.canal.connector.kafka.util.ClickHouseClient;
 import com.alibaba.otter.canal.protocol.FlatMessage;
 import com.alibaba.otter.canal.protocol.Message;
+import org.apache.commons.lang.StringUtils;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.collection.mutable.StringBuilder;
+
+import java.io.File;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * kafka producer SPI 实现
@@ -159,7 +157,8 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     template.submit((Callable) () -> {
                         try {
                             return send(mqDestination, topicName, messageSub, mqProperties.isFlatMessage());
-                        } catch (Exception e) {
+                        }
+                        catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     });
@@ -204,7 +203,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         }
     }
 
-    private List<Future> send(MQDestination mqDestination, String topicName, Message message, boolean flat) throws SQLException {
+    private List<Future> send(MQDestination mqDestination, String topicName, Message message, boolean flat) throws SQLException, InterruptedException {
         List<ProducerRecord<String, byte[]>> records = new ArrayList<>();
         // 获取当前topic的分区数
         Integer partitionNum = MQMessageUtils.parseDynamicTopicPartition(topicName, mqDestination.getDynamicTopicPartitionNum());
@@ -302,39 +301,51 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         return produce(records);
     }
 
-    private void execDelete(FlatMessage flatMessagePart) throws SQLException {
-        if (ClickHouseClient.connection == null) {
+    private void execDelete(FlatMessage flatMessagePart) throws SQLException, InterruptedException {
+        if (ClickHouseClient.dataSource == null) {
             ClickHouseClient.init(this.mqProperties.getCkURL(),
                     this.mqProperties.getCkUsername(),
                     this.mqProperties.getCkPassword());
         }
+        Connection connection=ClickHouseClient.dataSource.getConnection(60000);
         List<String> pkNames = flatMessagePart.getPkNames();
         List<Map<String, String>> dataList = flatMessagePart.getData();
         String database = flatMessagePart.getDatabase();
         String table = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
         String cluster = this.mqProperties.getCkClusterName();
-        if (!isExist(database, table)) {
+        if (!ClickHouseClient.isExist(database, table,connection)) {    //判断该表是否存在，若不存在则返回
             return;
         }
-        String prefix = "alter table " + database + "." + table + " on cluster " + cluster + " delete where ";
+        String selectPrefix = "select 1 from " + database + "." + flatMessagePart.getTable() +  " where ";
+        String deletePrefix = "alter table " + database + "." + table + " on cluster " + cluster + " delete where ";
         for (Map<String, String> data : dataList) {
-            StringBuilder sqlBuilder = new StringBuilder();
-            sqlBuilder.append(prefix);
-            for (String pkName : pkNames) {  //添加主键筛选条件
-                sqlBuilder.append(pkName).append("='" + data.get(pkName) + "' and ");
+            String selectSQL=appendCondition(pkNames, selectPrefix, data);
+            String deleteSQL = appendCondition(pkNames, deletePrefix, data);
+            int cnt=0;
+            while(ClickHouseClient.isEmpty(selectSQL,connection)) {    //判断要删除的行是否存在
+                cnt++;
+                Thread.sleep(1000);
+                if(cnt>=600){
+                    throw new SQLException("执行"+selectSQL+"结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
+                }
             }
-            int len = sqlBuilder.length();
-            sqlBuilder.delete(len - 4, len);
-            logger.warn("执行DELETE，SQL：" + sqlBuilder);
-            ClickHouseClient.executeSQL(sqlBuilder.toString());
+            logger.warn("执行DELETE，SQL：" + deleteSQL);
+            ClickHouseClient.executeSQL(deleteSQL.toString(),connection);
         }
+        connection.close();
     }
 
-    private boolean isExist(String database, String table) throws SQLException {
-        String checkSQL = "show tables in " + database + " like '" + table + "';";
-        ResultSet rs = ClickHouseClient.executeSQL(checkSQL);
-        return rs.next();
+    private String appendCondition(List<String> pkNames, String deletePrefix, Map<String, String> data) {
+        StringBuilder deleteBuilder = new StringBuilder();
+        deleteBuilder.append(deletePrefix);
+        for (String pkName : pkNames) {  //添加主键筛选条件
+            deleteBuilder.append(pkName).append("='" + data.get(pkName) + "' and ");
+        }
+        int len = deleteBuilder.length();
+        deleteBuilder.delete(len - 4, len);
+        return deleteBuilder.toString();
     }
+
 
     private List<Future> produce(List<ProducerRecord<String, byte[]>> records) {
         List<Future> futures = new ArrayList<>();
