@@ -27,9 +27,18 @@ public class MQProperties {
     private String  ckUsername              = "";
     private String  ckPassword              = "";
     private String  ckClusterName           = "";
+    private String  ckFrequentDeleteTables  = "";
 
     public String getCkClusterName() {
         return ckClusterName;
+    }
+
+    public String getCkFrequentDeleteTables() {
+        return ckFrequentDeleteTables;
+    }
+
+    public void setCkFrequentDeleteTables(String ckFrequentDeleteTables) {
+        this.ckFrequentDeleteTables = ckFrequentDeleteTables;
     }
 
     public void setCkClusterName(String ckClusterName) {

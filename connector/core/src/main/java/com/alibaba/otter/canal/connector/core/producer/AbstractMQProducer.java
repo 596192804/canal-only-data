@@ -151,6 +151,11 @@ public abstract class AbstractMQProducer implements CanalMQProducer {
         if (!StringUtils.isEmpty(ckClusterName)) {
             mqProperties.setCkClusterName(ckClusterName);
         }
+        String ckFrequentDeleteTables = properties.getProperty(CanalConstants.CANAL_CK_FREQUENT_DELETE_TABLES);
+        if (!StringUtils.isEmpty(ckFrequentDeleteTables)) {
+            mqProperties.setCkFrequentDeleteTables(ckFrequentDeleteTables);
+        }
+
     }
 
     /**

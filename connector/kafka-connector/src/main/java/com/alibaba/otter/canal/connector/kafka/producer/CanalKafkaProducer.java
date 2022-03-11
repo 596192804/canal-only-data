@@ -16,6 +16,7 @@ import com.alibaba.otter.canal.connector.kafka.config.KafkaProducerConfig;
 import com.alibaba.otter.canal.connector.kafka.util.ClickHouseClient;
 import com.alibaba.otter.canal.protocol.FlatMessage;
 import com.alibaba.otter.canal.protocol.Message;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -157,8 +158,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     template.submit((Callable) () -> {
                         try {
                             return send(mqDestination, topicName, messageSub, mqProperties.isFlatMessage());
-                        }
-                        catch (Exception e) {
+                        } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
                     });
@@ -254,12 +254,26 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     for (int i = 0; i < length; i++) {
                         FlatMessage flatMessagePart = partitionFlatMessage[i];
                         if (flatMessagePart != null) {
-                            if (!this.mqProperties.isFlatMessageOnlyData()) {       //发送完整数据，包括sqltype
+                            if (!this.mqProperties.isFlatMessageOnlyData()) {       //发送完整数据
                                 records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(flatMessagePart,
                                         SerializerFeature.WriteMapNullValue)));
-                            } else {
-                                if (flatMessagePart.getType().equalsIgnoreCase("DELETE")) {   //delete情况下去ck执行delete
-                                    execDelete(flatMessagePart);
+                            } else {                                                //只发送data数据，用于支持Clickhouse同步kafka
+                                if (flatMessagePart.getType().equalsIgnoreCase("DELETE")) {   //delete情况下
+                                    String[] deleteTables = this.mqProperties.getCkFrequentDeleteTables().split(",");
+                                    String tbFullName = flatMessagePart.getDatabase() + "." + flatMessagePart.getTable();
+                                    if (ArrayUtils.contains(deleteTables, tbFullName)) {
+                                        //判断要delete的表是否为频繁delete的表（频繁delete的表用CollapsingMergeTree引擎）
+                                        List<Map<String, String>> flatMessagePartData = flatMessagePart.getData();
+                                        if (flatMessagePartData != null) {
+                                            for (Map<String, String> partData : flatMessagePartData) {
+                                                partData.put("sign", "-1");      //CollapsingMergeTree加入-1字段表示删除
+                                                records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(partData,
+                                                        SerializerFeature.WriteMapNullValue)));
+                                            }
+                                        }
+                                    } else {
+                                        execDelete(flatMessagePart);
+                                    }
                                 } else {
                                     List<Map<String, String>> flatMessagePartData = flatMessagePart.getData();  //insert和update情况下只发送data的数据
                                     if (flatMessagePartData != null &&
@@ -281,7 +295,22 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                                 SerializerFeature.WriteMapNullValue)));
                     } else {
                         if (flatMessage.getType().equalsIgnoreCase("DELETE")) {   //delete情况下去ck执行delete
-                            execDelete(flatMessage);
+                            String[] deleteTables = this.mqProperties.getCkFrequentDeleteTables().split(",");
+                            String tbFullName = flatMessage.getDatabase() + "." + flatMessage.getTable();
+                            if (ArrayUtils.contains(deleteTables, tbFullName)) {
+                                //判断要delete的表是否为频繁delete的表（频繁delete的表用CollapsingMergeTree引擎）
+                                List<Map<String, String>> flatMessagePartData = flatMessage.getData();
+                                if (flatMessagePartData != null) {
+                                    for (Map<String, String> partData : flatMessagePartData) {
+                                        partData.put("sign", "-1");      //CollapsingMergeTree加入-1字段表示删除
+                                        records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
+                                                SerializerFeature.WriteMapNullValue)));
+                                    }
+                                }
+                            }
+                            else{
+                                execDelete(flatMessage);
+                            }
                         } else {
                             List<Map<String, String>> flatMessagePartData = flatMessage.getData();
                             if (flatMessagePartData != null && (
@@ -301,39 +330,6 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         return produce(records);
     }
 
-    private void execDelete(FlatMessage flatMessagePart) throws SQLException, InterruptedException {
-        if (ClickHouseClient.dataSource == null) {
-            ClickHouseClient.init(this.mqProperties.getCkURL(),
-                    this.mqProperties.getCkUsername(),
-                    this.mqProperties.getCkPassword());
-        }
-        Connection connection=ClickHouseClient.dataSource.getConnection(60000);
-        List<String> pkNames = flatMessagePart.getPkNames();
-        List<Map<String, String>> dataList = flatMessagePart.getData();
-        String database = flatMessagePart.getDatabase();
-        String table = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
-        String cluster = this.mqProperties.getCkClusterName();
-        if (!ClickHouseClient.isExist(database, table,connection)) {    //判断该表是否存在，若不存在则返回
-            return;
-        }
-        String selectPrefix = "select 1 from " + database + "." + flatMessagePart.getTable() +  " where ";
-        String deletePrefix = "alter table " + database + "." + table + " on cluster " + cluster + " delete where ";
-        for (Map<String, String> data : dataList) {
-            String selectSQL=appendCondition(pkNames, selectPrefix, data);
-            String deleteSQL = appendCondition(pkNames, deletePrefix, data);
-            int cnt=0;
-            while(ClickHouseClient.isEmpty(selectSQL,connection)) {    //判断要删除的行是否存在
-                cnt++;
-                Thread.sleep(1000);
-                if(cnt>=600){
-                    throw new SQLException("执行"+selectSQL+"结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
-                }
-            }
-            logger.warn("执行DELETE，SQL：" + deleteSQL);
-            ClickHouseClient.executeSQL(deleteSQL.toString(),connection);
-        }
-        connection.close();
-    }
 
     private String appendCondition(List<String> pkNames, String deletePrefix, Map<String, String> data) {
         StringBuilder deleteBuilder = new StringBuilder();
@@ -344,6 +340,45 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         int len = deleteBuilder.length();
         deleteBuilder.delete(len - 4, len);
         return deleteBuilder.toString();
+    }
+
+    /**
+     * @Author XieChuangJian
+     * @Description ReplacingMergeTree表的删除操作
+     * @Date 2022/3/11
+     */
+    private void execDelete(FlatMessage flatMessagePart) throws SQLException, InterruptedException {
+        if (ClickHouseClient.dataSource == null) {
+            ClickHouseClient.init(this.mqProperties.getCkURL(),
+                    this.mqProperties.getCkUsername(),
+                    this.mqProperties.getCkPassword());
+        }
+        Connection connection = ClickHouseClient.dataSource.getConnection(60000);
+        List<String> pkNames = flatMessagePart.getPkNames();
+        List<Map<String, String>> dataList = flatMessagePart.getData();
+        String database = flatMessagePart.getDatabase();
+        String table = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
+        String cluster = this.mqProperties.getCkClusterName();
+        if (!ClickHouseClient.isExist(database, table, connection)) {    //判断该表是否存在，若不存在则返回
+            return;
+        }
+        String selectPrefix = "select 1 from " + database + "." + flatMessagePart.getTable() + " where ";
+        String deletePrefix = "alter table " + database + "." + table + " on cluster " + cluster + " delete where ";
+        for (Map<String, String> data : dataList) {
+            String selectSQL = appendCondition(pkNames, selectPrefix, data);
+            String deleteSQL = appendCondition(pkNames, deletePrefix, data);
+            int cnt = 0;
+            while (ClickHouseClient.isEmpty(selectSQL, connection)) {    //判断要删除的行是否存在
+                cnt++;
+                Thread.sleep(1000);
+                if (cnt >= 600) {
+                    throw new SQLException("执行" + selectSQL + "结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
+                }
+            }
+            logger.warn("执行DELETE，SQL：" + deleteSQL);
+            ClickHouseClient.executeSQL(deleteSQL, connection);
+        }
+        connection.close();
     }
 
 

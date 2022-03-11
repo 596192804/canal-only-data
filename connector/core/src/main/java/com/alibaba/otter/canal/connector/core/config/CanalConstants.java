@@ -31,4 +31,5 @@ public class CanalConstants {
     public static final String CANAL_CK_USERNAME              = ROOT + "." + "ck.username";
     public static final String CANAL_CK_PASSWORD              = ROOT + "." + "ck.password";
     public static final String CANAL_CK_CLUSTER_NAME          = ROOT + "." + "ck.cluster.name";
+    public static final String CANAL_CK_FREQUENT_DELETE_TABLES= ROOT + "." + "ck.frequent.delete.tables";
 }
