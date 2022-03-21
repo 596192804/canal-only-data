@@ -30,10 +30,10 @@ public class ClickHouseClient {
         dataSource.setPassword(password);
         dataSource.setValidationQuery("SELECT 1");
         dataSource.setTestWhileIdle(true);
-        dataSource.setMaxActive(100000);
+        dataSource.setMaxActive(30000);
         dataSource.setRemoveAbandoned(true);
-        dataSource.setRemoveAbandonedTimeout(600);
-        dataSource.setLogAbandoned(true);
+        dataSource.setRemoveAbandonedTimeout(60);
+        dataSource.setLogAbandoned(false);
         dataSource.init();
     }
 
