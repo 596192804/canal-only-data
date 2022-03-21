@@ -278,12 +278,12 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                                             (flatMessagePart.getType().equalsIgnoreCase("INSERT")
                                                     || flatMessagePart.getType().equalsIgnoreCase("UPDATE"))) {
                                         for (Map<String, String> partData : flatMessagePartData) {
-                                            if(isFrequentTable(flatMessagePart)&&flatMessagePart.getType().equalsIgnoreCase("UPDATE")) {
+                                            if (isFrequentTable(flatMessagePart) && flatMessagePart.getType().equalsIgnoreCase("UPDATE")) {
                                                 partData.put("sign", "-1");        //CollapsingMergeTree的update先删除再插入
                                                 records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(partData,
                                                         SerializerFeature.WriteMapNullValue)));
                                             }
-                                            if(isFrequentTable(flatMessagePart)) partData.put("sign", "1");
+                                            if (isFrequentTable(flatMessagePart)) partData.put("sign", "1");
                                             records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(partData,
                                                     SerializerFeature.WriteMapNullValue)));
                                         }
@@ -309,8 +309,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                                                 SerializerFeature.WriteMapNullValue)));
                                     }
                                 }
-                            }
-                            else{
+                            } else {
                                 execDelete(flatMessage);
                             }
                         } else {
@@ -319,12 +318,12 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                                     flatMessage.getType().equalsIgnoreCase("INSERT")
                                             || flatMessage.getType().equalsIgnoreCase("UPDATE"))) {
                                 for (Map<String, String> partData : flatMessagePartData) {
-                                    if(isFrequentTable(flatMessage)&&flatMessage.getType().equalsIgnoreCase("UPDATE")) {
+                                    if (isFrequentTable(flatMessage) && flatMessage.getType().equalsIgnoreCase("UPDATE")) {
                                         partData.put("sign", "-1");        //CollapsingMergeTree的update先删除再插入
                                         records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
                                                 SerializerFeature.WriteMapNullValue)));
                                     }
-                                    if(isFrequentTable(flatMessage)) partData.put("sign", "1");
+                                    if (isFrequentTable(flatMessage)) partData.put("sign", "1");
                                     records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
                                             SerializerFeature.WriteMapNullValue)));
                                 }
@@ -338,13 +337,42 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         return produce(records);
     }
 
+
+    /**
+     * @Author XieChuangJian
+     * @Description 判断insert前是否需要Delete
+     * @Date 2022/3/21
+     */
+    private boolean execDeleteBeforeInsert(FlatMessage message, Map<String, String> partData) throws SQLException {
+        if (ClickHouseClient.dataSource == null) {
+            ClickHouseClient.init(this.mqProperties.getCkURL(),
+                    this.mqProperties.getCkUsername(),
+                    this.mqProperties.getCkPassword());
+        }
+        Connection connection = ClickHouseClient.dataSource.getConnection(60000);
+        List<String> pkNames = message.getPkNames();
+        String database = message.getDatabase();
+        String selectPrefix = "select 1 from " + database + "." + message.getTable() + " where ";
+        String selectSQL = appendCondition(pkNames, selectPrefix, partData);
+        return !ClickHouseClient.isEmpty(selectSQL, connection);
+    }
+
+    /**
+     * @Author XieChuangJian
+     * @Description 判断是否是配置文件里配置的canal.ck.frequent.delete.tables
+     * @Date 2022/3/21
+     */
     private boolean isFrequentTable(FlatMessage message) {
         String[] deleteTables = this.mqProperties.getCkFrequentDeleteTables().split(",");
         String tbFullName = message.getDatabase() + "." + message.getTable();
         return ArrayUtils.contains(deleteTables, tbFullName);
     }
 
-
+    /**
+     * @Author XieChuangJian
+     * @Description 添加主键筛选条件
+     * @Date 2022/3/21
+     */
     private String appendCondition(List<String> pkNames, String deletePrefix, Map<String, String> data) {
         StringBuilder deleteBuilder = new StringBuilder();
         deleteBuilder.append(deletePrefix);
@@ -371,13 +399,13 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         List<String> pkNames = flatMessagePart.getPkNames();
         List<Map<String, String>> dataList = flatMessagePart.getData();
         String database = flatMessagePart.getDatabase();
-        String table = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
+        String localTable = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
         String cluster = this.mqProperties.getCkClusterName();
-        if (!ClickHouseClient.isExist(database, table, connection)) {    //判断该表是否存在，若不存在则返回
+        if (!ClickHouseClient.isExist(database, localTable, connection)) {    //判断该表是否存在，若不存在则返回
             return;
         }
         String selectPrefix = "select 1 from " + database + "." + flatMessagePart.getTable() + " where ";
-        String deletePrefix = "alter table " + database + "." + table + " on cluster " + cluster + " delete where ";
+        String deletePrefix = "alter table " + database + "." + localTable + " on cluster " + cluster + " delete where ";
         for (Map<String, String> data : dataList) {
             String selectSQL = appendCondition(pkNames, selectPrefix, data);
             String deleteSQL = appendCondition(pkNames, deletePrefix, data);
