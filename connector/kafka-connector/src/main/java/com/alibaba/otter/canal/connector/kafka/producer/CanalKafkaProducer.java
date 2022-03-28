@@ -399,13 +399,14 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         List<String> pkNames = flatMessagePart.getPkNames();
         List<Map<String, String>> dataList = flatMessagePart.getData();
         String database = flatMessagePart.getDatabase();
-        String localTable = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
-        String cluster = this.mqProperties.getCkClusterName();
-        if (!ClickHouseClient.isExist(database, localTable, connection)) {    //判断该表是否存在，若不存在则返回
+        String table = flatMessagePart.getTable();
+//        String localTable = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
+//        String cluster = this.mqProperties.getCkClusterName();
+        if (!ClickHouseClient.isExist(database, table, connection)) {    //判断该表是否存在，若不存在则返回
             return;
         }
-        String selectPrefix = "select 1 from " + database + "." + flatMessagePart.getTable() + " where ";
-        String deletePrefix = "alter table " + database + "." + localTable + " on cluster " + cluster + " delete where ";
+        String selectPrefix = "select 1 from " + database + "." + table + " where ";
+        String deletePrefix = "alter table " + database + "." + table + " delete where ";
         for (Map<String, String> data : dataList) {
             String selectSQL = appendCondition(pkNames, selectPrefix, data);
             String deleteSQL = appendCondition(pkNames, deletePrefix, data);
