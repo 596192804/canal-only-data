@@ -16,7 +16,6 @@ import com.alibaba.otter.canal.connector.kafka.config.KafkaProducerConfig;
 import com.alibaba.otter.canal.connector.kafka.util.ClickHouseClient;
 import com.alibaba.otter.canal.protocol.FlatMessage;
 import com.alibaba.otter.canal.protocol.Message;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -53,11 +52,14 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
 
     private Producer<String, byte[]> producer;
 
+    private static String[] frequentDeleteTables;
+
 
     @Override
     public void init(Properties properties) {
         KafkaProducerConfig kafkaProducerConfig = new KafkaProducerConfig();
         this.mqProperties = kafkaProducerConfig;
+        frequentDeleteTables = properties.get("canal.ck.frequent.delete.tables").toString().split(",");
         super.init(properties);
         // load properties
         this.loadKafkaProperties(properties);
@@ -210,7 +212,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         if (partitionNum == null) {
             partitionNum = mqDestination.getPartitionsNum();
         }
-        if (!flat) {
+        if (!flat) { //以protobuf格式发送数据
             if (mqDestination.getPartitionHash() != null && !mqDestination.getPartitionHash().isEmpty()) {
                 // 并发构造
                 EntryRowData[] datas = MQMessageUtils.buildMessageData(message, buildExecutor);
@@ -253,83 +255,11 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     int length = partitionFlatMessage.length;
                     for (int i = 0; i < length; i++) {
                         FlatMessage flatMessagePart = partitionFlatMessage[i];
-                        if (flatMessagePart != null) {
-                            if (!this.mqProperties.isFlatMessageOnlyData()) {       //发送完整数据
-                                records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(flatMessagePart,
-                                        SerializerFeature.WriteMapNullValue)));
-                            } else {                                                //只发送data数据，用于支持Clickhouse同步kafka
-                                if (flatMessagePart.getType().equalsIgnoreCase("DELETE")) {   //delete情况下,需要额外处理
-                                    if (isFrequentTable(flatMessagePart)) {
-                                        //判断要delete的表是否为频繁delete的表（频繁delete的表用CollapsingMergeTree引擎）
-                                        List<Map<String, String>> flatMessagePartData = flatMessagePart.getData();
-                                        if (flatMessagePartData != null) {
-                                            for (Map<String, String> partData : flatMessagePartData) {
-                                                partData.put("sign", "-1");      //CollapsingMergeTree加入-1字段表示删除
-                                                records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(partData,
-                                                        SerializerFeature.WriteMapNullValue)));
-                                            }
-                                        }
-                                    } else {
-                                        execDelete(flatMessagePart);
-                                    }
-                                } else {                                       //insert和update情况下只发送data的数据
-                                    List<Map<String, String>> flatMessagePartData = flatMessagePart.getData();
-                                    if (flatMessagePartData != null &&
-                                            (flatMessagePart.getType().equalsIgnoreCase("INSERT")
-                                                    || flatMessagePart.getType().equalsIgnoreCase("UPDATE"))) {
-                                        for (Map<String, String> partData : flatMessagePartData) {
-                                            if (isFrequentTable(flatMessagePart) && flatMessagePart.getType().equalsIgnoreCase("UPDATE")) {
-                                                partData.put("sign", "-1");        //CollapsingMergeTree的update先删除再插入
-                                                records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(partData,
-                                                        SerializerFeature.WriteMapNullValue)));
-                                            }
-                                            if (isFrequentTable(flatMessagePart)) partData.put("sign", "1");
-                                            records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(partData,
-                                                    SerializerFeature.WriteMapNullValue)));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        addToKafka(topicName, records, i, flatMessagePart);
                     }
                 } else {    //消息队列单分区
                     final int partition = mqDestination.getPartition() != null ? mqDestination.getPartition() : 0;
-                    if (!this.mqProperties.isFlatMessageOnlyData()) {
-                        records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
-                                SerializerFeature.WriteMapNullValue)));
-                    } else {
-                        if (flatMessage.getType().equalsIgnoreCase("DELETE")) {   //delete情况下去ck执行delete
-                            if (isFrequentTable(flatMessage)) {
-                                //判断要delete的表是否为频繁delete的表（频繁delete的表用CollapsingMergeTree引擎）
-                                List<Map<String, String>> flatMessagePartData = flatMessage.getData();
-                                if (flatMessagePartData != null) {
-                                    for (Map<String, String> partData : flatMessagePartData) {
-                                        partData.put("sign", "-1");      //CollapsingMergeTree加入-1字段表示删除
-                                        records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                                SerializerFeature.WriteMapNullValue)));
-                                    }
-                                }
-                            } else {
-                                execDelete(flatMessage);
-                            }
-                        } else {
-                            List<Map<String, String>> flatMessagePartData = flatMessage.getData();
-                            if (flatMessagePartData != null && (
-                                    flatMessage.getType().equalsIgnoreCase("INSERT")
-                                            || flatMessage.getType().equalsIgnoreCase("UPDATE"))) {
-                                for (Map<String, String> partData : flatMessagePartData) {
-                                    if (isFrequentTable(flatMessage) && flatMessage.getType().equalsIgnoreCase("UPDATE")) {
-                                        partData.put("sign", "-1");        //CollapsingMergeTree的update先删除再插入
-                                        records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                                SerializerFeature.WriteMapNullValue)));
-                                    }
-                                    if (isFrequentTable(flatMessage)) partData.put("sign", "1");
-                                    records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                            SerializerFeature.WriteMapNullValue)));
-                                }
-                            }
-                        }
-                    }
+                    addToKafka(topicName, records, partition, flatMessage);
                 }
             }
         }
@@ -337,10 +267,60 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         return produce(records);
     }
 
+    /**
+     * @param topicName   Kafka topic
+     * @param records     存放Kafka Record的数据结构
+     * @param partition   kafka分区编号
+     * @param flatMessage 存放消息的数据结构
+     * @Author XieChuangJian
+     * @Description 将FlatMessage数据以JSON形式序列化添加到Kafka Records中
+     * @Date 2022/4/19
+     */
+    private void addToKafka(String topicName, List<ProducerRecord<String, byte[]>> records, int partition, FlatMessage flatMessage) throws SQLException, InterruptedException {
+        if (flatMessage != null) {
+            if (!this.mqProperties.isFlatMessageOnlyData()) {       //发送完整数据
+                records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
+                        SerializerFeature.WriteMapNullValue)));
+            } else {                                                //只发送data数据，用于支持Clickhouse同步kafka
+                String messageType = flatMessage.getType();
+                List<Map<String, String>> flatMessagePartData = flatMessage.getData();
+                if (flatMessagePartData != null) {
+                    if (messageType.equalsIgnoreCase("DELETE")) {   //delete情况下,需要额外处理
+                        if (isFrequentTable(flatMessage)) {                    //CollapsingMergeTree加入-1字段表示删除
+                            for (Map<String, String> partData : flatMessagePartData) {
+                                partData.put("sign", "-1");
+                                records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
+                                        SerializerFeature.WriteMapNullValue)));
+                            }
+                        } else {
+                            execDelete(flatMessage);                         //非CollapsingMergeTree则需要通过执行SQL来delete
+                        }
+                    }
+                    else {
+                        if (messageType.equalsIgnoreCase("INSERT") || messageType.equalsIgnoreCase("UPDATE")) {    //只处理insert和update
+                            for (Map<String, String> partData : flatMessagePartData) {
+                                if (isFrequentTable(flatMessage)) {          //CollapsingMergeTree需要额外处理
+                                    if (messageType.equalsIgnoreCase("UPDATE")) {
+                                        partData.put("sign", "-1");
+                                        records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
+                                                SerializerFeature.WriteMapNullValue)));
+                                    }
+                                    partData.put("sign", "1");
+                                }
+                                records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
+                                        SerializerFeature.WriteMapNullValue)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     /**
      * @Author XieChuangJian
-     * @Description 判断insert前是否需要Delete
+     * @Description 判断insert前是否需要Delete，
      * @Date 2022/3/21
      */
     private boolean execDeleteBeforeInsert(FlatMessage message, Map<String, String> partData) throws SQLException {
@@ -363,9 +343,12 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
      * @Date 2022/3/21
      */
     private boolean isFrequentTable(FlatMessage message) {
-        String[] deleteTables = this.mqProperties.getCkFrequentDeleteTables().split(",");
         String tbFullName = message.getDatabase() + "." + message.getTable();
-        return ArrayUtils.contains(deleteTables, tbFullName);
+        for (String frequentDeleteTable : frequentDeleteTables) {
+            if (frequentDeleteTable.equals(tbFullName))
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -376,7 +359,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
     private String appendCondition(List<String> pkNames, String deletePrefix, Map<String, String> data) {
         StringBuilder deleteBuilder = new StringBuilder();
         deleteBuilder.append(deletePrefix);
-        for (String pkName : pkNames) {  //添加主键筛选条件
+        for (String pkName : pkNames) {
             deleteBuilder.append(pkName).append("='" + data.get(pkName) + "' and ");
         }
         int len = deleteBuilder.length();
@@ -413,9 +396,11 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             int cnt = 0;
             while (ClickHouseClient.isEmpty(selectSQL, connection)) {    //循环一分钟判断要删除的行是否存在
                 cnt++;
-                Thread.sleep(1000);
-                if (cnt >= 60) {
-                    throw new SQLException("执行" + selectSQL + "结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
+                Thread.sleep(3000);
+                if (cnt >= 20) {
+                    logger.error("执行" + selectSQL + "结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
+                    break;
+//                    throw new SQLException("执行" + selectSQL + "结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
                 }
             }
             logger.warn("执行DELETE，SQL：" + deleteSQL);
