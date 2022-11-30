@@ -59,7 +59,11 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
     public void init(Properties properties) {
         KafkaProducerConfig kafkaProducerConfig = new KafkaProducerConfig();
         this.mqProperties = kafkaProducerConfig;
-        frequentDeleteTables = properties.get("canal.ck.frequent.delete.tables").toString().split(",");
+        Object frequentDeleteTablesProp = properties.get("canal.ck.frequent.delete.tables");
+        if (frequentDeleteTablesProp != null) {
+            frequentDeleteTables = frequentDeleteTablesProp.toString().split(",");
+        }
+
         super.init(properties);
         // load properties
         this.loadKafkaProperties(properties);
@@ -295,8 +299,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                         } else {
                             execDelete(flatMessage);                         //非CollapsingMergeTree则需要通过执行SQL来delete
                         }
-                    }
-                    else {
+                    } else {
                         if (messageType.equalsIgnoreCase("INSERT") || messageType.equalsIgnoreCase("UPDATE")) {    //只处理insert和update
                             for (Map<String, String> partData : flatMessagePartData) {
                                 if (isFrequentTable(flatMessage)) {          //CollapsingMergeTree需要额外处理
@@ -320,10 +323,10 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
 
     /**
      * @Author XieChuangJian
-     * @Description 判断insert前是否需要Delete，
+     * @Description 判断insert前是否需要Delete
      * @Date 2022/3/21
      */
-    private boolean execDeleteBeforeInsert(FlatMessage message, Map<String, String> partData) throws SQLException {
+    private boolean needDeleteBeforeInsert(FlatMessage message, Map<String, String> partData) throws SQLException {
         if (ClickHouseClient.dataSource == null) {
             ClickHouseClient.init(this.mqProperties.getCkURL(),
                     this.mqProperties.getCkUsername(),
@@ -398,12 +401,12 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                 cnt++;
                 Thread.sleep(3000);
                 if (cnt >= 20) {
-                    logger.error("执行" + selectSQL + "结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
+                    logger.error("执行{}结果为空，要delete的数据行不存在，请检测数据同步情况！！！", selectSQL);
                     break;
 //                    throw new SQLException("执行" + selectSQL + "结果为空，要delete的数据行不存在，请检测数据同步情况！！！");
                 }
             }
-            logger.warn("执行DELETE，SQL：" + deleteSQL);
+            logger.warn("执行DELETE，SQL：{}", deleteSQL);
             ClickHouseClient.executeSQL(deleteSQL, connection);
         }
         connection.close();
