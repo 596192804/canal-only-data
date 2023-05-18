@@ -397,7 +397,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             String selectSQL = appendCondition(pkNames, selectPrefix, data);
             String deleteSQL = appendCondition(pkNames, deletePrefix, data);
             int cnt = 0;
-            while (ClickHouseClient.isEmpty(selectSQL, connection)) {    //循环一分钟判断要删除的行是否存在
+            while (ClickHouseClient.isEmpty(selectSQL, connection)) {    //一分钟内每隔3秒循环判断要删除的行是否存在
                 cnt++;
                 Thread.sleep(3000);
                 if (cnt >= 20) {
