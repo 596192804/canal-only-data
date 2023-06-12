@@ -53,7 +53,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
 
     private Producer<String, byte[]> producer;
 
-    private  String[] frequentDeleteTables;
+    private String[] frequentDeleteTables;
 
 
     @Override
@@ -155,8 +155,8 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             if (!StringUtils.isEmpty(mqDestination.getDynamicTopic())) {
                 // 动态topic路由计算,只是基于schema/table,不涉及proto数据反序列化
                 Map<String, Message> messageMap = MQMessageUtils.messageTopics(message,
-                    mqDestination.getTopic(),
-                    mqDestination.getDynamicTopic());
+                        mqDestination.getTopic(),
+                        mqDestination.getDynamicTopic());
 
                 // 针对不同的topic,引入多线程提升效率
                 for (Map.Entry<String, Message> entry : messageMap.entrySet()) {
@@ -175,9 +175,9 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             } else {
                 result = new ArrayList();
                 List<Future> futures = send(mqDestination,
-                    mqDestination.getTopic(),
-                    message,
-                    mqProperties.isFlatMessage());
+                        mqDestination.getTopic(),
+                        message,
+                        mqProperties.isFlatMessage());
                 result.add(futures);
             }
 
@@ -385,7 +385,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         Connection connection = ClickHouseClient.dataSource.getConnection(60000);
         List<String> pkNames = flatMessagePart.getPkNames();
         List<Map<String, String>> dataList = flatMessagePart.getData();
-        String database = flatMessagePart.getDatabase();
+        String database = "newland";
         String table = flatMessagePart.getTable();
 //        String localTable = flatMessagePart.getTable() + "_local";   //默认更改Clickhouse的本地表
 //        String cluster = this.mqProperties.getCkClusterName();
