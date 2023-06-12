@@ -10,7 +10,7 @@
     <groupId>com.alibaba.otter</groupId>
     <artifactId>canal.deployer</artifactId>
     <packaging>jar</packaging>
-    <version>1.1.6-ONLY-DATA-WITH-CKDELETE</version>
+    <version>1.1.5-ONLY-DATA-WITH-CKDELETE</version>
     <name>canal deployer module for otter ${project.parent.version}</name>
     <dependencies>
         <dependency>

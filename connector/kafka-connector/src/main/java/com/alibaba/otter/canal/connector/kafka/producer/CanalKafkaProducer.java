@@ -52,7 +52,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
 
     private Producer<String, byte[]> producer;
 
-    private static String[] frequentDeleteTables;
+    private  String[] frequentDeleteTables;
 
 
     @Override
