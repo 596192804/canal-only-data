@@ -1,5 +1,16 @@
 package com.alibaba.otter.canal.connector.core.producer;
 
+import com.alibaba.otter.canal.common.utils.NamedThreadFactory;
+import com.alibaba.otter.canal.common.utils.PropertiesUtils;
+import com.alibaba.otter.canal.connector.core.config.CanalConstants;
+import com.alibaba.otter.canal.connector.core.config.MQProperties;
+import com.alibaba.otter.canal.connector.core.spi.CanalMQProducer;
+import org.apache.commons.lang.StringUtils;
+
+import java.util.Properties;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -7,10 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
 
-import com.alibaba.otter.canal.common.utils.NamedThreadFactory;
-import com.alibaba.otter.canal.connector.core.config.CanalConstants;
-import com.alibaba.otter.canal.connector.core.config.MQProperties;
-import com.alibaba.otter.canal.connector.core.spi.CanalMQProducer;
 
 /**
  * MQ producer 抽象类
@@ -20,7 +27,7 @@ import com.alibaba.otter.canal.connector.core.spi.CanalMQProducer;
  */
 public abstract class AbstractMQProducer implements CanalMQProducer {
 
-    protected MQProperties       mqProperties;
+    protected MQProperties mqProperties;
 
     protected ThreadPoolExecutor sendExecutor;
     protected ThreadPoolExecutor buildExecutor;
@@ -32,21 +39,21 @@ public abstract class AbstractMQProducer implements CanalMQProducer {
 
         int parallelBuildThreadSize = mqProperties.getParallelBuildThreadSize();
         buildExecutor = new ThreadPoolExecutor(parallelBuildThreadSize,
-            parallelBuildThreadSize,
-            0,
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(parallelBuildThreadSize * 2),
-            new NamedThreadFactory("MQ-Parallel-Builder"),
-            new ThreadPoolExecutor.CallerRunsPolicy());
+                parallelBuildThreadSize,
+                0,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(parallelBuildThreadSize * 2),
+                new NamedThreadFactory("MQ-Parallel-Builder"),
+                new ThreadPoolExecutor.CallerRunsPolicy());
 
         int parallelSendThreadSize = mqProperties.getParallelSendThreadSize();
         sendExecutor = new ThreadPoolExecutor(parallelSendThreadSize,
-            parallelSendThreadSize,
-            0,
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(parallelSendThreadSize * 2),
-            new NamedThreadFactory("MQ-Parallel-Sender"),
-            new ThreadPoolExecutor.CallerRunsPolicy());
+                parallelSendThreadSize,
+                0,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(parallelSendThreadSize * 2),
+                new NamedThreadFactory("MQ-Parallel-Sender"),
+                new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
     @Override
@@ -77,7 +84,7 @@ public abstract class AbstractMQProducer implements CanalMQProducer {
      * canal.mq.timeout = 100 <br/>
      * canal.mq.access.channel = local <br/>
      * </p>
-     * 
+     *
      * @param properties 总配置对象
      */
     private void loadCanalMqProperties(Properties properties) {
@@ -155,14 +162,14 @@ public abstract class AbstractMQProducer implements CanalMQProducer {
         if (!StringUtils.isEmpty(ckFrequentDeleteTables)) {
             mqProperties.setCkFrequentDeleteTables(ckFrequentDeleteTables);
         }
-
     }
+
 
     /**
      * 兼容下<=1.1.4的mq配置项
      */
     protected void doMoreCompatibleConvert(String oldKey, String newKey, Properties properties) {
-        String value = properties.getProperty(oldKey);
+        String value = PropertiesUtils.getProperty(properties, oldKey);
         if (StringUtils.isNotEmpty(value)) {
             properties.setProperty(newKey, value);
         }

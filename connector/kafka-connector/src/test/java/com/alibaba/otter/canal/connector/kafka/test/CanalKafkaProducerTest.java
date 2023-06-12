@@ -1,7 +1,6 @@
 package com.alibaba.otter.canal.connector.kafka.test;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 
@@ -28,5 +27,4 @@ public class CanalKafkaProducerTest {
 
         in.close();
     }
-
 }

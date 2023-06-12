@@ -34,7 +34,7 @@ public class ExecutorTemplate {
     private volatile List<Future>       futures  = null;
 
     public ExecutorTemplate(ThreadPoolExecutor executor){
-        this.futures = Collections.synchronizedList(new ArrayList<Future>());
+        this.futures = Collections.synchronizedList(new ArrayList<>());
         this.executor = executor;
     }
 
@@ -72,7 +72,7 @@ public class ExecutorTemplate {
                 result.add(future.get());
             } catch (Throwable e) {
                 exception = new RuntimeException(e);
-                // 如果其中一个future出现了异常，就退出
+                // 如何一个future出现了异常，就退出
                 break;
             }
         }

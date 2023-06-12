@@ -3,6 +3,7 @@ package com.alibaba.otter.canal.connector.kafka.producer;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.alibaba.otter.canal.common.utils.ExecutorTemplate;
+import com.alibaba.otter.canal.common.utils.PropertiesUtils;
 import com.alibaba.otter.canal.connector.core.producer.AbstractMQProducer;
 import com.alibaba.otter.canal.connector.core.producer.MQDestination;
 import com.alibaba.otter.canal.connector.core.producer.MQMessageUtils;
@@ -116,15 +117,15 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                 kafkaProperties.put(key, value);
             }
         }
-        String kerberosEnabled = properties.getProperty(KafkaConstants.CANAL_MQ_KAFKA_KERBEROS_ENABLE);
+        String kerberosEnabled = PropertiesUtils.getProperty(properties, KafkaConstants.CANAL_MQ_KAFKA_KERBEROS_ENABLE);
         if (!StringUtils.isEmpty(kerberosEnabled)) {
             kafkaProducerConfig.setKerberosEnabled(Boolean.parseBoolean(kerberosEnabled));
         }
-        String krb5File = properties.getProperty(KafkaConstants.CANAL_MQ_KAFKA_KERBEROS_KRB5_FILE);
+        String krb5File = PropertiesUtils.getProperty(properties, KafkaConstants.CANAL_MQ_KAFKA_KERBEROS_KRB5_FILE);
         if (!StringUtils.isEmpty(krb5File)) {
             kafkaProducerConfig.setKrb5File(krb5File);
         }
-        String jaasFile = properties.getProperty(KafkaConstants.CANAL_MQ_KAFKA_KERBEROS_JAAS_FILE);
+        String jaasFile = PropertiesUtils.getProperty(properties, KafkaConstants.CANAL_MQ_KAFKA_KERBEROS_JAAS_FILE);
         if (!StringUtils.isEmpty(jaasFile)) {
             kafkaProducerConfig.setJaasFile(jaasFile);
         }
@@ -154,8 +155,8 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             if (!StringUtils.isEmpty(mqDestination.getDynamicTopic())) {
                 // 动态topic路由计算,只是基于schema/table,不涉及proto数据反序列化
                 Map<String, Message> messageMap = MQMessageUtils.messageTopics(message,
-                        mqDestination.getTopic(),
-                        mqDestination.getDynamicTopic());
+                    mqDestination.getTopic(),
+                    mqDestination.getDynamicTopic());
 
                 // 针对不同的topic,引入多线程提升效率
                 for (Map.Entry<String, Message> entry : messageMap.entrySet()) {
@@ -174,9 +175,9 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             } else {
                 result = new ArrayList();
                 List<Future> futures = send(mqDestination,
-                        mqDestination.getTopic(),
-                        message,
-                        mqProperties.isFlatMessage());
+                    mqDestination.getTopic(),
+                    message,
+                    mqProperties.isFlatMessage());
                 result.add(futures);
             }
 
@@ -184,7 +185,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             // 最后在集结点进行flush等待，确保所有数据都写出成功
             // 注意：kafka的异步模式如果要保证顺序性，需要设置max.in.flight.requests.per.connection=1，确保在网络异常重试时有排他性
             producer.flush();
-            // flush操作也有可能是发送失败,这里需要异步关注一下发送结果,针对有异常的直接触发rollback
+            // flush操作也有可能是发送失败,这里需要异步关注一下发送结果,针对有异常的直接出发rollback
             for (Object obj : result) {
                 List<Future> futures = (List<Future>) obj;
                 for (Future future : futures) {
