@@ -192,6 +192,7 @@ public class DatabaseTableMeta implements TableMetaTSDB {
             ResultSetPacket packet = connection.query("show databases");
             List<String> schemas = new ArrayList<>();
             for (String schema : packet.getFieldValues()) {
+                //不在黑名单中的库才会被加载
                 if (blackFilter == null || !blackFilter.filter(schema)) {
                     schemas.add(schema);
                 }
