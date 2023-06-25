@@ -11,12 +11,6 @@ import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.Properties;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.lang.StringUtils;
 
 
 /**
@@ -96,10 +90,6 @@ public abstract class AbstractMQProducer implements CanalMQProducer {
         if (!StringUtils.isEmpty(flatMessageOnlyData)) {
             mqProperties.setFlatMessageOnlyData(Boolean.parseBoolean(flatMessageOnlyData));
         }
-//        String flatMessageSqlType = properties.getProperty(CanalConstants.CANAL_MQ_FLAT_MESSAGE_SQLTYPE);
-//        if (!StringUtils.isEmpty(flatMessageSqlType)) {
-//            mqProperties.setFlatMessageSqlType(flatMessageSqlType);
-//        }
 
         String databaseHash = properties.getProperty(CanalConstants.CANAL_MQ_DATABASE_HASH);
         if (!StringUtils.isEmpty(databaseHash)) {

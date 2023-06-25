@@ -1,40 +1,44 @@
 package com.alibaba.otter.canal.connector.kafka.util;
 
 import com.alibaba.druid.pool.DruidDataSource;
-import com.alibaba.druid.pool.DruidPooledConnection;
 
 import java.sql.*;
 
 /**
- * The type Click house client.
+ * The type Clickhouse client.
  *
  * @Author XieChuangJian
  * @Date 2021 /11/24
  */
 public class ClickHouseClient {
-    public static DruidDataSource dataSource;
+    private static volatile DruidDataSource dataSource;
+
 
     /**
+     * @return DruidDataSource
      * @Author XieChuangJian
-     * @Description 初始化Druid数据源
-     * @Date 2022/4/19
-     * @param url Clickhouse的URL
-     * @param username Clickhouse的用户名
-     * @param password Clickhouse的密码
+     * @Description Druid数据源，若未初始化，则采用双重校验锁（DCL）方式创建实例
+     * @Date 2023/6/16
      */
-    public static void init(String url, String username, String password) throws SQLException {
-        dataSource = new DruidDataSource();
-        dataSource.setDriverClassName("com.clickhouse.jdbc.ClickHouseDriver");
-        dataSource.setUrl(url);
-        dataSource.setUsername(username);
-        dataSource.setPassword(password);
-        dataSource.setValidationQuery("SELECT 1");
-        dataSource.setTestWhileIdle(true);
-        dataSource.setMaxActive(30000);
-        dataSource.setRemoveAbandoned(true);        //定期清除废弃链接
-        dataSource.setRemoveAbandonedTimeout(120);
-        dataSource.setLogAbandoned(false);
-        dataSource.init();
+    public static DruidDataSource getDataSourceInstance(String url, String username, String password) throws SQLException {
+        if (dataSource == null) {
+            synchronized (ClickHouseClient.class) {
+                if (dataSource == null) {
+                    DruidDataSource tmp = new DruidDataSource();
+                    tmp.setDriverClassName("com.clickhouse.jdbc.ClickHouseDriver");
+                    tmp.setUrl(url);
+                    tmp.setUsername(username);
+                    tmp.setPassword(password);
+                    tmp.setValidationQuery("SELECT 1");
+                    tmp.setTestWhileIdle(true);
+                    tmp.setMaxActive(30);     //最大连接数量
+                    tmp.setLogAbandoned(false);
+                    tmp.init();
+                    dataSource = tmp;
+                }
+            }
+        }
+        return dataSource;
     }
 
     /**
@@ -42,16 +46,15 @@ public class ClickHouseClient {
      *
      * @param sql        要执行的SQL语句
      * @param connection the connection
-     * @return java.sql.ResultSet
      * @throws SQLException the sql exception
      * @Author XieChuangJian
      * @Description 调用ClickhouseJDBC客户端访问Clickhouse并执行SQL
      * @Date 2021 /11/24
      */
     public static void executeSQL(String sql, Connection connection) throws SQLException {
-        Statement statement = connection.createStatement();
-        statement.executeQuery(sql);
-        statement.close();
+        try (Statement statement = connection.createStatement()) {
+            statement.executeQuery(sql);
+        }
     }
 
     /**
@@ -65,18 +68,25 @@ public class ClickHouseClient {
      */
     public static boolean isExist(String database, String table, Connection connection) throws SQLException {
         String checkSQL = "show tables in " + database + " like '" + table + "';";
-        Statement statement = connection.createStatement();
-        ResultSet rs = statement.executeQuery(checkSQL);
-        boolean isExist = rs.next();
-        statement.close();
-        return isExist;
+        return !isEmpty(checkSQL, connection);
     }
 
+    /**
+     * @param checkSQL   要检测的SQL
+     * @param connection 数据库连接
+     * @return boolean
+     * @Author XieChuangJian
+     * @Description 判断执行SQL后结果是否为空
+     * @Date 2023/6/13
+     */
     public static boolean isEmpty(String checkSQL, Connection connection) throws SQLException {
-        Statement statement = connection.createStatement();
-        ResultSet rs = statement.executeQuery(checkSQL);
-        boolean isExist = rs.next();
-        statement.close();
-        return !isExist;
+        try (Statement statement = connection.createStatement()) {
+            ResultSet rs = statement.executeQuery(checkSQL);
+            return !rs.next();
+        }
+    }
+
+    private ClickHouseClient() {
+        throw new IllegalStateException("Utility class");
     }
 }
