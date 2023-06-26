@@ -357,13 +357,13 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
      * @Description ReplacingMergeTree表的删除操作
      * @Date 2022/3/11
      */
-    private void execDelete(FlatMessage flatMessagePart) throws SQLException, InterruptedException, IOException {
+    private void execDelete(FlatMessage flatMessagePart) throws SQLException, InterruptedException {
         try (Connection connection = ClickHouseClient.getDataSourceInstance(this.mqProperties.getCkURL(),
                 this.mqProperties.getCkUsername(),
                 this.mqProperties.getCkPassword()).getConnection(6000)) {
             List<String> pkNames = flatMessagePart.getPkNames();
             List<Map<String, String>> dataList = flatMessagePart.getData();
-            String database = "newland";
+            String database = flatMessagePart.getDatabase();
             String table = flatMessagePart.getTable();
             if (!ClickHouseClient.isExist(database, table, connection)) {    //判断该表是否存在，若不存在则返回
                 return;
