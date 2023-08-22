@@ -1,5 +1,4 @@
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.serializer.SerializerFeature;
+import com.alibaba.fastjson2.JSON;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -13,6 +12,6 @@ public class testFastJSON {
     public void test1(){
         HashMap<String, Float> map = new HashMap<>();
         map.put("num", (float) 1.66);
-        System.out.println(JSON.toJSONString(map,SerializerFeature.WriteMapNullValue));
+//        System.out.println(JSON.toJSONString(map,SerializerFeature.WriteMapNullValue));
     }
 }

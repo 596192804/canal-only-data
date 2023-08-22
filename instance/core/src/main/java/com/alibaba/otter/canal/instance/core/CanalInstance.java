@@ -18,7 +18,7 @@ public interface CanalInstance extends CanalLifeCycle {
 
     String getDestination();
 
-    boolean isMultiCluster();
+    Boolean getEnableMultiCluster();
 
     String getClusterName();
 
@@ -38,4 +38,6 @@ public interface CanalInstance extends CanalLifeCycle {
     boolean subscribeChange(ClientIdentity identity);
 
     CanalMQConfig getMqConfig();
+
+
 }

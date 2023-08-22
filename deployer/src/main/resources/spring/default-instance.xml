@@ -32,8 +32,8 @@
         <property name="mqConfig">
             <ref bean="mqConfig"/>
         </property>
-        <property name="multiCluster" value="canal.instance.multiCluster"/>
-        <property name="clusterName" value="canal.instance.clusterName"/>
+        <property name="enableMultiCluster" value="${canal.instance.enableMultiCluster:false}"/>
+        <property name="clusterName" value="${canal.instance.clusterName}"/>
     </bean>
 
     <!-- 报警处理类 -->

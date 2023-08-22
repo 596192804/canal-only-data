@@ -61,4 +61,12 @@ public class CanalInstanceWithSpring extends AbstractCanalInstance {
         this.mqConfig = mqConfig;
     }
 
+    public void setEnableMultiCluster(Boolean enableMultiCluster) {
+        this.enableMultiCluster = enableMultiCluster;
+    }
+
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
+    }
+
 }

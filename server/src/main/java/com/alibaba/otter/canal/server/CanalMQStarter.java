@@ -157,7 +157,7 @@ public class CanalMQStarter {
                 canalDestination.setPartitionHash(mqConfig.getPartitionHash());
                 canalDestination.setDynamicTopicPartitionNum(mqConfig.getDynamicTopicPartitionNum());
                 canalDestination.setEnableDynamicQueuePartition(mqConfig.getEnableDynamicQueuePartition());
-                canalDestination.setMultiCluster(canalInstance.isMultiCluster());
+                canalDestination.setEnableMultiCluster(canalInstance.getEnableMultiCluster());
                 canalDestination.setClusterName(canalInstance.getClusterName());
 
                 canalServer.subscribe(clientIdentity);

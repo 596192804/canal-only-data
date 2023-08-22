@@ -1,27 +1,7 @@
 package com.alibaba.otter.canal.connector.kafka.producer;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-
-import com.alibaba.otter.canal.common.utils.PropertiesUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONWriter;
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.alibaba.otter.canal.common.utils.ExecutorTemplate;
 import com.alibaba.otter.canal.common.utils.PropertiesUtils;
 import com.alibaba.otter.canal.connector.core.producer.AbstractMQProducer;
@@ -44,7 +24,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.mutable.StringBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -283,17 +262,14 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                         FlatMessage flatMessagePart = partitionFlatMessage[i];
                         if (flatMessagePart != null) {
                             records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(flatMessagePart,
-                                JSONWriter.Feature.WriteNulls)));
+                                    JSONWriter.Feature.WriteNulls)));
                         }
                         addToKafka(mqDestination, topicName, records, i, flatMessagePart);
                     }
                 } else {    //消息队列单分区
                     final int partition = mqDestination.getPartition() != null ? mqDestination.getPartition() : 0;
                     records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
-                        JSONWriter.Feature.WriteNulls)));
-                }
-            }
-        }
+                            JSONWriter.Feature.WriteNulls)));
                     addToKafka(mqDestination, topicName, records, partition, flatMessage);
                 }
             }
@@ -315,46 +291,46 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         if (flatMessage != null) {
             if (!this.mqProperties.isFlatMessageOnlyData()) {       //canal.mq.flatMessage.onlyData为False时发送完整数据
                 records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
-                        SerializerFeature.WriteMapNullValue)));
+                        JSONWriter.Feature.WriteNulls)));
             } else {                                                //canal.mq.flatMessage.onlyData为True时只发送data字段数据，用于支持Clickhouse同步kafka
                 String messageType = flatMessage.getType().toUpperCase();
                 List<Map<String, String>> flatMessagePartData = flatMessage.getData();
                 if (flatMessagePartData != null) {
                     boolean isFrequentDelete = isFrequentDeleteTable(flatMessage);
-                    boolean isMultiCluster = mqDestination.isMultiCluster();
+                    boolean enableMultiCluster = mqDestination.getEnableMultiCluster();
                     String clusterName = mqDestination.getClusterName();
                     switch (messageType) {
                         case "DELETE": {
                             if (isFrequentDelete) {                    //CollapsingMergeTree加入sign=-1表示删除
                                 for (Map<String, String> partData : flatMessagePartData) {
-                                    if (isMultiCluster) {
+                                    if (enableMultiCluster) {
                                         partData.put("cluster", clusterName);
                                     }
                                     partData.put("sign", "-1");
                                     records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                            SerializerFeature.WriteMapNullValue)));
+                                            JSONWriter.Feature.WriteNulls)));
                                 }
                             } else {
-                                execDelete(isMultiCluster, clusterName, flatMessage);               //非CollapsingMergeTree则需要通过执行SQL来delete
+                                execDelete(enableMultiCluster, clusterName, flatMessage);               //非CollapsingMergeTree则需要通过执行SQL来delete
                             }
                             break;
                         }
                         case "INSERT":
                         case "UPDATE": {
                             for (Map<String, String> partData : flatMessagePartData) {
-                                if (isMultiCluster) {
+                                if (enableMultiCluster) {
                                     partData.put("cluster", clusterName);
                                 }
                                 if (isFrequentDelete) {          //CollapsingMergeTree需要额外处理，添加sign字段，-1为删除，1为新增
                                     if (messageType.equals("UPDATE")) {
                                         partData.put("sign", "-1");
                                         records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                                SerializerFeature.WriteMapNullValue)));
+                                                JSONWriter.Feature.WriteNulls)));
                                     }
                                     partData.put("sign", "1");
                                 }
                                 records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                        SerializerFeature.WriteMapNullValue)));
+                                        JSONWriter.Feature.WriteNulls)));
                             }
                         }
                     }
@@ -395,12 +371,12 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
      * @Description ReplacingMergeTree表的删除操作
      * @Date 2022/3/11
      */
-    private void execDelete(boolean isMultiCluster, String clusterName, FlatMessage flatMessagePart) throws SQLException, InterruptedException {
+    private void execDelete(boolean enableMultiCluster, String clusterName, FlatMessage flatMessagePart) throws SQLException, InterruptedException {
         try (Connection connection = ClickHouseClient.getDataSourceInstance(this.mqProperties.getCkURL(),
                 this.mqProperties.getCkUsername(),
                 this.mqProperties.getCkPassword()).getConnection(6000)) {
             List<String> pkNames = flatMessagePart.getPkNames();
-            if (isMultiCluster) {
+            if (enableMultiCluster) {
                 pkNames.add("cluster");
             }
             List<Map<String, String>> dataList = flatMessagePart.getData();
@@ -412,7 +388,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             String selectPrefix = "select 1 from " + database + "." + table + " where ";
             String deletePrefix = "alter table " + database + "." + table + " delete where ";
             for (Map<String, String> data : dataList) {
-                if (isMultiCluster) {
+                if (enableMultiCluster) {
                     data.put("cluster", clusterName);
                 }
                 String selectSQL = appendCondition(pkNames, selectPrefix, data);
