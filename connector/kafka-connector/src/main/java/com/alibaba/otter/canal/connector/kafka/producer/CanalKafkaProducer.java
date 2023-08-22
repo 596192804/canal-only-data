@@ -1,5 +1,25 @@
 package com.alibaba.otter.canal.connector.kafka.producer;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import com.alibaba.otter.canal.common.utils.PropertiesUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONWriter;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.alibaba.otter.canal.common.utils.ExecutorTemplate;
@@ -63,7 +83,6 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
 
         KafkaProducerConfig kafkaProducerConfig = new KafkaProducerConfig();
         this.mqProperties = kafkaProducerConfig;
-
         super.init(properties);
         // load properties
         this.loadKafkaProperties(properties);
@@ -112,6 +131,8 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             String key = (String) entry.getKey();
             Object value = entry.getValue();
             if (key.startsWith(PREFIX_KAFKA_CONFIG) && value != null) {
+                // check env config
+                value = PropertiesUtils.getProperty(properties, key);
                 key = key.substring(PREFIX_KAFKA_CONFIG.length());
                 kafkaProperties.put(key, value);
             }
@@ -195,6 +216,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     }
                 }
             }
+
             callback.commit();
         } catch (SQLException e) {
             logger.error(e.getMessage(), e);
@@ -259,10 +281,19 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     int length = partitionFlatMessage.length;
                     for (int i = 0; i < length; i++) {
                         FlatMessage flatMessagePart = partitionFlatMessage[i];
+                        if (flatMessagePart != null) {
+                            records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(flatMessagePart,
+                                JSONWriter.Feature.WriteNulls)));
+                        }
                         addToKafka(mqDestination, topicName, records, i, flatMessagePart);
                     }
                 } else {    //消息队列单分区
                     final int partition = mqDestination.getPartition() != null ? mqDestination.getPartition() : 0;
+                    records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
+                        JSONWriter.Feature.WriteNulls)));
+                }
+            }
+        }
                     addToKafka(mqDestination, topicName, records, partition, flatMessage);
                 }
             }
@@ -408,6 +439,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         for (ProducerRecord record : records) {
             futures.add(producer.send(record));
         }
+
         return futures;
     }
 

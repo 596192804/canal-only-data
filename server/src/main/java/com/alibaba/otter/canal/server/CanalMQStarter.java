@@ -1,17 +1,5 @@
 package com.alibaba.otter.canal.server;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-
 import com.alibaba.otter.canal.connector.core.config.MQProperties;
 import com.alibaba.otter.canal.connector.core.producer.MQDestination;
 import com.alibaba.otter.canal.connector.core.spi.CanalMQProducer;
@@ -21,26 +9,37 @@ import com.alibaba.otter.canal.instance.core.CanalMQConfig;
 import com.alibaba.otter.canal.protocol.ClientIdentity;
 import com.alibaba.otter.canal.protocol.Message;
 import com.alibaba.otter.canal.server.embedded.CanalServerWithEmbedded;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CanalMQStarter {
 
-    private static final Logger logger = LoggerFactory.getLogger(CanalMQStarter.class);
+    private static final Logger          logger         = LoggerFactory.getLogger(CanalMQStarter.class);
 
-    private volatile boolean running = false;
+    private volatile boolean             running        = false;
 
-    private ExecutorService executorService;
+    private ExecutorService              executorService;
 
-    private CanalMQProducer canalMQProducer;
+    private CanalMQProducer              canalMQProducer;
 
-    private MQProperties mqProperties;
+    private MQProperties                 mqProperties;
 
-    private CanalServerWithEmbedded canalServer;
+    private CanalServerWithEmbedded      canalServer;
 
-    private Map<String, CanalMQRunnable> canalMQWorks = new ConcurrentHashMap<>();
+    private Map<String, CanalMQRunnable> canalMQWorks   = new ConcurrentHashMap<>();
 
-    private static Thread shutdownThread = null;
+    private static Thread                shutdownThread = null;
 
-    public CanalMQStarter(CanalMQProducer canalMQProducer) {
+    public CanalMQStarter(CanalMQProducer canalMQProducer){
         this.canalMQProducer = canalMQProducer;
     }
 
@@ -157,6 +156,7 @@ public class CanalMQStarter {
                 canalDestination.setPartitionsNum(mqConfig.getPartitionsNum());
                 canalDestination.setPartitionHash(mqConfig.getPartitionHash());
                 canalDestination.setDynamicTopicPartitionNum(mqConfig.getDynamicTopicPartitionNum());
+                canalDestination.setEnableDynamicQueuePartition(mqConfig.getEnableDynamicQueuePartition());
                 canalDestination.setMultiCluster(canalInstance.isMultiCluster());
                 canalDestination.setClusterName(canalInstance.getClusterName());
 
@@ -214,7 +214,7 @@ public class CanalMQStarter {
 
         private String destination;
 
-        CanalMQRunnable(String destination) {
+        CanalMQRunnable(String destination){
             this.destination = destination;
         }
 

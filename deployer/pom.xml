@@ -3,33 +3,32 @@
     <parent>
         <groupId>com.alibaba.otter</groupId>
         <artifactId>canal</artifactId>
-        <version>1.1.5</version>
+        <version>1.1.6</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <groupId>com.alibaba.otter</groupId>
     <artifactId>canal.deployer</artifactId>
     <packaging>jar</packaging>
-    <version>1.1.5</version>
     <name>canal deployer module for otter ${project.version}</name>
     <dependencies>
         <dependency>
             <groupId>com.alibaba.otter</groupId>
             <artifactId>canal.server</artifactId>
-            <version>${project.parent.version}</version>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- 这里指定runtime的metrics provider-->
         <dependency>
             <groupId>com.alibaba.otter</groupId>
             <artifactId>canal.prometheus</artifactId>
-            <version>${project.parent.version}</version>
+            <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
 
         <dependency>
             <groupId>com.alibaba.otter</groupId>
             <artifactId>connector.kafka</artifactId>
-            <version>${project.parent.version}</version>
+            <version>${project.version}</version>
             <exclusions>
                 <exclusion>
                     <artifactId>*</artifactId>
@@ -42,7 +41,7 @@
         <dependency>
             <groupId>com.alibaba.otter</groupId>
             <artifactId>connector.rocketmq</artifactId>
-            <version>${project.parent.version}</version>
+            <version>${project.version}</version>
             <exclusions>
                 <exclusion>
                     <artifactId>*</artifactId>
@@ -55,7 +54,20 @@
         <dependency>
             <groupId>com.alibaba.otter</groupId>
             <artifactId>connector.rabbitmq</artifactId>
-            <version>${project.parent.version}</version>
+            <version>${project.version}</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>*</artifactId>
+                    <groupId>*</groupId>
+                </exclusion>
+            </exclusions>
+            <classifier>jar-with-dependencies</classifier>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.otter</groupId>
+            <artifactId>connector.pulsarmq</artifactId>
+            <version>${project.version}</version>
             <exclusions>
                 <exclusion>
                     <artifactId>*</artifactId>

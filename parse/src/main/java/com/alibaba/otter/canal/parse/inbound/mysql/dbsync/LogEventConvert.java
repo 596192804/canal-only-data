@@ -286,10 +286,16 @@ public class LogEventConvert extends AbstractCanalLifeCycle implements BinlogPar
 
             boolean isDml = (type == EventType.INSERT || type == EventType.UPDATE || type == EventType.DELETE);
 
+            // filterQueryDdl=true的情况下,也得更新tablemeta
             if (!isSeek && !isDml) {
                 // 使用新的表结构元数据管理方式
                 EntryPosition position = createPosition(event.getHeader());
                 tableMetaCache.apply(position, event.getDbName(), queryString, null);
+            }
+
+            if (filterQueryDdl) {
+                // 全部DDL过滤,那就忽略事件生成
+                return null;
             }
 
             Header header = createHeader(event.getHeader(), schemaName, tableName, type);
@@ -335,12 +341,8 @@ public class LogEventConvert extends AbstractCanalLifeCycle implements BinlogPar
             || result.getType() == EventType.RENAME || result.getType() == EventType.CINDEX
             || result.getType() == EventType.DINDEX) { // 针对DDL类型
 
-            if (filterQueryDdl) {
-                return true;
-            }
-
-            if (StringUtils.isEmpty(tableName)
-                || (result.getType() == EventType.RENAME && StringUtils.isEmpty(result.getOriTableName()))) {
+            if (!filterQueryDdl && (StringUtils.isEmpty(tableName)
+                || (result.getType() == EventType.RENAME && StringUtils.isEmpty(result.getOriTableName())))) {
                 // 如果解析不出tableName,记录一下日志，方便bugfix，目前直接抛出异常，中断解析
                 throw new CanalParseException("SimpleDdlParser process query failed. pls submit issue with this queryString: "
                                               + queryString + " , and DdlResult: " + result.toString());
@@ -627,7 +629,7 @@ public class LogEventConvert extends AbstractCanalLifeCycle implements BinlogPar
         }
 
         if (tableMeta != null && columnInfo.length > tableMeta.getFields().size()) {
-            if (tableMetaCache.isOnRDS()) {
+            if (tableMetaCache.isOnRDS() || tableMetaCache.isOnPolarX()) {
                 // 特殊处理下RDS的场景
                 List<FieldMeta> primaryKeys = tableMeta.getPrimaryFields();
                 if (primaryKeys == null || primaryKeys.isEmpty()) {
@@ -680,6 +682,9 @@ public class LogEventConvert extends AbstractCanalLifeCycle implements BinlogPar
             if (existRDSNoPrimaryKey && i == columnCnt - 1 && info.type == LogEvent.MYSQL_TYPE_LONGLONG) {
                 // 不解析最后一列
                 String rdsRowIdColumnName = "__#alibaba_rds_row_id#__";
+                if (tableMetaCache.isOnPolarX()) {
+                    rdsRowIdColumnName = "_drds_implicit_id_";
+                }
                 buffer.nextValue(rdsRowIdColumnName, i, info.type, info.meta, false);
                 Column.Builder columnBuilder = Column.newBuilder();
                 columnBuilder.setName(rdsRowIdColumnName);

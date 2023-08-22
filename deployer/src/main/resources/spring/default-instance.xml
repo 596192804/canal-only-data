@@ -201,12 +201,13 @@
         <property name="autoResetLatestPosMode" value="${canal.auto.reset.latest.pos.mode:false}"/>
     </bean>
 
-    <bean id="mqConfig" class="com.alibaba.otter.canal.instance.core.CanalMQConfig">
-        <property name="topic" value="${canal.mq.topic}"/>
-        <property name="dynamicTopic" value="${canal.mq.dynamicTopic}"/>
-        <property name="partition" value="${canal.mq.partition}"/>
-        <property name="partitionsNum" value="${canal.mq.partitionsNum}"/>
-        <property name="partitionHash" value="${canal.mq.partitionHash}"/>
-        <property name="dynamicTopicPartitionNum" value="${canal.mq.dynamicTopicPartitionNum}"/>
-    </bean>
+	<bean id="mqConfig" class="com.alibaba.otter.canal.instance.core.CanalMQConfig">
+		<property name="topic" value="${canal.mq.topic}" />
+		<property name="dynamicTopic" value="${canal.mq.dynamicTopic}" />
+		<property name="partition" value="${canal.mq.partition}" />
+		<property name="partitionsNum" value="${canal.mq.partitionsNum}" />
+		<property name="partitionHash" value="${canal.mq.partitionHash}" />
+		<property name="dynamicTopicPartitionNum" value="${canal.mq.dynamicTopicPartitionNum}" />
+		<property name="enableDynamicQueuePartition" value="${canal.mq.enableDynamicQueuePartition}" />
+	</bean>
 </beans>

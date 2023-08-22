@@ -15,6 +15,7 @@ public class MQDestination {
     private String partitionHash;
     private String dynamicTopic;
     private String dynamicTopicPartitionNum;
+    private Boolean enableDynamicQueuePartition;
     private boolean multiCluster;
     private String clusterName;
 
@@ -88,5 +89,13 @@ public class MQDestination {
 
     public void setClusterName(String clusterName) {
         this.clusterName = clusterName;
+    }
+
+    public Boolean getEnableDynamicQueuePartition() {
+        return enableDynamicQueuePartition;
+    }
+
+    public void setEnableDynamicQueuePartition(Boolean enableDynamicQueuePartition) {
+        this.enableDynamicQueuePartition = enableDynamicQueuePartition;
     }
 }
