@@ -16,8 +16,6 @@ public class MQDestination {
     private String dynamicTopic;
     private String dynamicTopicPartitionNum;
     private Boolean enableDynamicQueuePartition;
-    private Boolean enableMultiCluster;
-    private String clusterName;
 
     public String getCanalDestination() {
         return canalDestination;
@@ -73,22 +71,6 @@ public class MQDestination {
 
     public void setDynamicTopicPartitionNum(String dynamicTopicPartitionNum) {
         this.dynamicTopicPartitionNum = dynamicTopicPartitionNum;
-    }
-
-    public Boolean getEnableMultiCluster() {
-        return enableMultiCluster;
-    }
-
-    public void setEnableMultiCluster(boolean enableMultiCluster) {
-        this.enableMultiCluster = enableMultiCluster;
-    }
-
-    public String getClusterName() {
-        return clusterName;
-    }
-
-    public void setClusterName(String clusterName) {
-        this.clusterName = clusterName;
     }
 
     public Boolean getEnableDynamicQueuePartition() {

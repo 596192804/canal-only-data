@@ -157,8 +157,6 @@ public class CanalMQStarter {
                 canalDestination.setPartitionHash(mqConfig.getPartitionHash());
                 canalDestination.setDynamicTopicPartitionNum(mqConfig.getDynamicTopicPartitionNum());
                 canalDestination.setEnableDynamicQueuePartition(mqConfig.getEnableDynamicQueuePartition());
-                canalDestination.setEnableMultiCluster(canalInstance.getEnableMultiCluster());
-                canalDestination.setClusterName(canalInstance.getClusterName());
 
                 canalServer.subscribe(clientIdentity);
                 logger.info("## the MQ producer: {} is running now ......", destination);

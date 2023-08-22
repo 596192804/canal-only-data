@@ -260,11 +260,11 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     int length = partitionFlatMessage.length;
                     for (int i = 0; i < length; i++) {
                         FlatMessage flatMessagePart = partitionFlatMessage[i];
-                        addToKafka(mqDestination, topicName, records, i, flatMessagePart);
+                        addToKafka(topicName, records, i, flatMessagePart);
                     }
                 } else {    //消息队列单分区
                     final int partition = mqDestination.getPartition() != null ? mqDestination.getPartition() : 0;
-                    addToKafka(mqDestination, topicName, records, partition, flatMessage);
+                    addToKafka(topicName, records, partition, flatMessage);
                 }
             }
         }
@@ -281,7 +281,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
      * @Description 将FlatMessage数据以JSON形式序列化添加到Kafka Records中
      * @Date 2022/4/19
      */
-    private void addToKafka(MQDestination mqDestination, String topicName, List<ProducerRecord<String, byte[]>> records, int partition, FlatMessage flatMessage) throws SQLException, InterruptedException, IOException {
+    private void addToKafka(String topicName, List<ProducerRecord<String, byte[]>> records, int partition, FlatMessage flatMessage) throws SQLException, InterruptedException, IOException {
         if (flatMessage != null) {
             if (!this.mqProperties.isFlatMessageOnlyData()) {       //canal.mq.flatMessage.onlyData为False时发送完整数据
                 records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
@@ -291,21 +291,16 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                 List<Map<String, String>> flatMessagePartData = flatMessage.getData();
                 if (flatMessagePartData != null) {
                     boolean isFrequentDelete = isFrequentDeleteTable(flatMessage);
-                    boolean enableMultiCluster = mqDestination.getEnableMultiCluster();
-                    String clusterName = mqDestination.getClusterName();
                     switch (messageType) {
                         case "DELETE": {
                             if (isFrequentDelete) {                    //CollapsingMergeTree加入sign=-1表示删除
                                 for (Map<String, String> partData : flatMessagePartData) {
-                                    if (enableMultiCluster) {
-                                        partData.put("cluster", clusterName);
-                                    }
                                     partData.put("sign", "-1");
                                     records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
                                             JSONWriter.Feature.WriteNulls)));
                                 }
                             } else {
-                                execDelete(enableMultiCluster, clusterName, flatMessage);               //非CollapsingMergeTree则需要通过执行SQL来delete
+                                execDelete(flatMessage);               //非CollapsingMergeTree则需要通过执行SQL来delete
                             }
                             break;
                         }
@@ -313,18 +308,12 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                         case "INSERT": {
                             if (isFrequentDelete && messageType.equals("UPDATE")) { //CollapsingMergeTree Update时需要添加sign=-1将旧数据先删除
                                 for (Map<String, String> oldData : flatMessage.getOld()) {
-                                    if (enableMultiCluster) {
-                                        oldData.put("cluster", clusterName);
-                                    }
                                     oldData.put("sign", "-1");
                                     records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(oldData,
                                             JSONWriter.Feature.WriteNulls)));
                                 }
                             }
                             for (Map<String, String> partData : flatMessagePartData) {
-                                if (enableMultiCluster) {
-                                    partData.put("cluster", clusterName);
-                                }
                                 if (isFrequentDelete) {
                                     partData.put("sign", "1");
                                 }
@@ -358,7 +347,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         StringBuilder deleteBuilder = new StringBuilder();
         deleteBuilder.append(deletePrefix);
         for (String pkName : pkNames) {
-            deleteBuilder.append(pkName).append("='" + data.get(pkName) + "' and ");
+            deleteBuilder.append(pkName).append("='").append(data.get(pkName)).append("' and ");
         }
         int len = deleteBuilder.length();
         deleteBuilder.delete(len - 4, len);    //删除末尾多出来的“and ”
@@ -370,14 +359,11 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
      * @Description ReplacingMergeTree表的删除操作
      * @Date 2022/3/11
      */
-    private void execDelete(boolean enableMultiCluster, String clusterName, FlatMessage flatMessagePart) throws SQLException, InterruptedException {
+    private void execDelete(FlatMessage flatMessagePart) throws SQLException, InterruptedException {
         try (Connection connection = ClickHouseClient.getDataSourceInstance(this.mqProperties.getCkURL(),
                 this.mqProperties.getCkUsername(),
                 this.mqProperties.getCkPassword()).getConnection(6000)) {
             List<String> pkNames = flatMessagePart.getPkNames();
-            if (enableMultiCluster) {
-                pkNames.add("cluster");
-            }
             List<Map<String, String>> dataList = flatMessagePart.getData();
             String database = flatMessagePart.getDatabase();
             String table = flatMessagePart.getTable();
@@ -387,9 +373,6 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             String selectPrefix = "select 1 from " + database + "." + table + " where ";
             String deletePrefix = "alter table " + database + "." + table + " delete where ";
             for (Map<String, String> data : dataList) {
-                if (enableMultiCluster) {
-                    data.put("cluster", clusterName);
-                }
                 String selectSQL = appendCondition(pkNames, selectPrefix, data);
                 String deleteSQL = appendCondition(pkNames, deletePrefix, data);
                 int cnt = 0;

@@ -18,10 +18,6 @@ public interface CanalInstance extends CanalLifeCycle {
 
     String getDestination();
 
-    Boolean getEnableMultiCluster();
-
-    String getClusterName();
-
     CanalEventParser getEventParser();
 
     CanalEventSink getEventSink();
