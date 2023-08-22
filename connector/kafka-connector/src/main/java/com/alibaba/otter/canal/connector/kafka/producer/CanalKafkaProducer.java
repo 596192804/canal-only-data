@@ -50,14 +50,14 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
 
     private Producer<String, byte[]> producer;
 
-    private HashSet<String> frequentDeleteTables;
+    private final HashSet<String> frequentDeleteTables = new HashSet<>();
 
 
     @Override
     public void init(Properties properties) {
         String frequentDeleteTablesProp = (String) properties.get("canal.ck.frequent.delete.tables");
         if (frequentDeleteTablesProp != null) {
-            frequentDeleteTables = new HashSet<>(Arrays.asList(frequentDeleteTablesProp.split(",")));
+            frequentDeleteTables.addAll(Arrays.asList(frequentDeleteTablesProp.split(",")));
         }
 
         KafkaProducerConfig kafkaProducerConfig = new KafkaProducerConfig();
@@ -260,16 +260,10 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                     int length = partitionFlatMessage.length;
                     for (int i = 0; i < length; i++) {
                         FlatMessage flatMessagePart = partitionFlatMessage[i];
-                        if (flatMessagePart != null) {
-                            records.add(new ProducerRecord<>(topicName, i, null, JSON.toJSONBytes(flatMessagePart,
-                                    JSONWriter.Feature.WriteNulls)));
-                        }
                         addToKafka(mqDestination, topicName, records, i, flatMessagePart);
                     }
                 } else {    //消息队列单分区
                     final int partition = mqDestination.getPartition() != null ? mqDestination.getPartition() : 0;
-                    records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(flatMessage,
-                            JSONWriter.Feature.WriteNulls)));
                     addToKafka(mqDestination, topicName, records, partition, flatMessage);
                 }
             }
@@ -315,18 +309,23 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                             }
                             break;
                         }
-                        case "INSERT":
-                        case "UPDATE": {
+                        case "UPDATE":
+                        case "INSERT": {
+                            if (isFrequentDelete && messageType.equals("UPDATE")) { //CollapsingMergeTree Update时需要添加sign=-1将旧数据先删除
+                                for (Map<String, String> oldData : flatMessage.getOld()) {
+                                    if (enableMultiCluster) {
+                                        oldData.put("cluster", clusterName);
+                                    }
+                                    oldData.put("sign", "-1");
+                                    records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(oldData,
+                                            JSONWriter.Feature.WriteNulls)));
+                                }
+                            }
                             for (Map<String, String> partData : flatMessagePartData) {
                                 if (enableMultiCluster) {
                                     partData.put("cluster", clusterName);
                                 }
-                                if (isFrequentDelete) {          //CollapsingMergeTree需要额外处理，添加sign字段，-1为删除，1为新增
-                                    if (messageType.equals("UPDATE")) {
-                                        partData.put("sign", "-1");
-                                        records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
-                                                JSONWriter.Feature.WriteNulls)));
-                                    }
+                                if (isFrequentDelete) {
                                     partData.put("sign", "1");
                                 }
                                 records.add(new ProducerRecord<>(topicName, partition, null, JSON.toJSONBytes(partData,
