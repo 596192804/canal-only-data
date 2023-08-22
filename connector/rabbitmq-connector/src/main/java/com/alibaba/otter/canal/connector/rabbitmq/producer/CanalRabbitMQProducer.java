@@ -26,10 +26,7 @@ import com.alibaba.otter.canal.connector.rabbitmq.config.RabbitMQConstants;
 import com.alibaba.otter.canal.connector.rabbitmq.config.RabbitMQProducerConfig;
 import com.alibaba.otter.canal.protocol.FlatMessage;
 import com.alibaba.otter.canal.protocol.Message;
-import com.rabbitmq.client.AlreadyClosedException;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.*;
 
 /**
  * RabbitMQ Producer SPI 实现
@@ -75,7 +72,13 @@ public class CanalRabbitMQProducer extends AbstractMQProducer implements CanalMQ
         try {
             connect = factory.newConnection();
             channel = connect.createChannel();
-            // channel.exchangeDeclare(mqProperties.getExchange(), "topic");
+            channel.queueDeclare(rabbitMQProperties.getQueue(), true, false, false, null);
+            channel.exchangeDeclare(rabbitMQProperties
+                .getExchange(), rabbitMQProperties.getDeliveryMode(), true, false, false, null);
+            channel.queueBind(rabbitMQProperties.getQueue(),
+                rabbitMQProperties.getExchange(),
+                rabbitMQProperties.getRoutingKey());
+
         } catch (IOException | TimeoutException ex) {
             throw new CanalException("Start RabbitMQ producer error", ex);
         }
@@ -106,6 +109,18 @@ public class CanalRabbitMQProducer extends AbstractMQProducer implements CanalMQ
         if (!StringUtils.isEmpty(password)) {
             rabbitMQProperties.setPassword(password);
         }
+        String queue = PropertiesUtils.getProperty(properties, RabbitMQConstants.RABBITMQ_QUEUE);
+        if (!StringUtils.isEmpty(queue)) {
+            rabbitMQProperties.setQueue(queue);
+        }
+        String routingKey = PropertiesUtils.getProperty(properties, RabbitMQConstants.RABBITMQ_ROUTING_KEY);
+        if (!StringUtils.isEmpty(routingKey)) {
+            rabbitMQProperties.setRoutingKey(routingKey);
+        }
+        String deliveryMode = PropertiesUtils.getProperty(properties, RabbitMQConstants.RABBITMQ_DELIVERY_MODE);
+        if (!StringUtils.isEmpty(deliveryMode)) {
+            rabbitMQProperties.setDeliveryMode(deliveryMode);
+        }
     }
 
     @Override
@@ -114,9 +129,8 @@ public class CanalRabbitMQProducer extends AbstractMQProducer implements CanalMQ
         try {
             if (!StringUtils.isEmpty(destination.getDynamicTopic())) {
                 // 动态topic
-                Map<String, Message> messageMap = MQMessageUtils.messageTopics(message,
-                    destination.getTopic(),
-                    destination.getDynamicTopic());
+                Map<String, Message> messageMap = MQMessageUtils
+                    .messageTopics(message, destination.getTopic(), destination.getDynamicTopic());
 
                 for (Map.Entry<String, com.alibaba.otter.canal.protocol.Message> entry : messageMap.entrySet()) {
                     final String topicName = entry.getKey().replace('.', '_');
@@ -165,7 +179,10 @@ public class CanalRabbitMQProducer extends AbstractMQProducer implements CanalMQ
         // tips: 目前逻辑中暂不处理对exchange处理，请在Console后台绑定 才可使用routekey
         try {
             RabbitMQProducerConfig rabbitMQProperties = (RabbitMQProducerConfig) this.mqProperties;
-            channel.basicPublish(rabbitMQProperties.getExchange(), queueName, null, message);
+            channel.basicPublish(rabbitMQProperties.getExchange(),
+                queueName,
+                MessageProperties.PERSISTENT_TEXT_PLAIN,
+                message);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
