@@ -8,13 +8,15 @@ package com.alibaba.otter.canal.connector.core.producer;
  */
 public class MQDestination {
 
-    private String  canalDestination;
-    private String  topic;
+    private String canalDestination;
+    private String topic;
     private Integer partition;
     private Integer partitionsNum;
-    private String  partitionHash;
-    private String  dynamicTopic;
-    private String  dynamicTopicPartitionNum;
+    private String partitionHash;
+    private String dynamicTopic;
+    private String dynamicTopicPartitionNum;
+    private boolean multiCluster;
+    private String clusterName;
 
     public String getCanalDestination() {
         return canalDestination;
@@ -70,5 +72,21 @@ public class MQDestination {
 
     public void setDynamicTopicPartitionNum(String dynamicTopicPartitionNum) {
         this.dynamicTopicPartitionNum = dynamicTopicPartitionNum;
+    }
+
+    public boolean isMultiCluster() {
+        return multiCluster;
+    }
+
+    public void setMultiCluster(boolean multiCluster) {
+        this.multiCluster = multiCluster;
+    }
+
+    public String getClusterName() {
+        return clusterName;
+    }
+
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
     }
 }

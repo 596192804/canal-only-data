@@ -10,13 +10,17 @@ import com.alibaba.otter.canal.store.CanalEventStore;
 
 /**
  * 代表单个canal实例，比如一个destination会独立一个实例
- * 
+ *
  * @author jianghang 2012-7-12 下午12:04:58
  * @version 1.0.0
  */
 public interface CanalInstance extends CanalLifeCycle {
 
     String getDestination();
+
+    boolean isMultiCluster();
+
+    String getClusterName();
 
     CanalEventParser getEventParser();
 

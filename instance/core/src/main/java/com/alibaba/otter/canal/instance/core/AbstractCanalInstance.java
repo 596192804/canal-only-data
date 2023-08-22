@@ -39,6 +39,8 @@ public class AbstractCanalInstance extends AbstractCanalLifeCycle implements Can
     protected CanalMetaManager                       metaManager;                                                  // 消费信息管理器
     protected CanalAlarmHandler                      alarmHandler;                                                 // alarm报警机制
     protected CanalMQConfig                          mqConfig;                                                     // mq的配置
+    protected   boolean                              multiCluster;                                                 // 是否针对多集群的同一张表同步
+    protected   String                               clusterName;                                                  // 集群名
 
 
 
@@ -252,5 +254,15 @@ public class AbstractCanalInstance extends AbstractCanalLifeCycle implements Can
     @Override
     public CanalMQConfig getMqConfig() {
         return mqConfig;
+    }
+
+    @Override
+    public boolean isMultiCluster() {
+        return multiCluster;
+    }
+
+    @Override
+    public String getClusterName() {
+        return this.clusterName;
     }
 }
