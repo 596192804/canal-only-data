@@ -18,6 +18,8 @@ public class MQDestination {
     private Boolean enableDynamicQueuePartition;
     private Boolean enableMultiCluster;
     private String clusterName;
+    private Boolean enableDeleteOnFixedClickHouseDB;
+    private String fixedClickHouseDBName;
 
     public String getCanalDestination() {
         return canalDestination;
@@ -79,7 +81,7 @@ public class MQDestination {
         return enableMultiCluster;
     }
 
-    public void setEnableMultiCluster(boolean enableMultiCluster) {
+    public void setEnableMultiCluster(Boolean enableMultiCluster) {
         this.enableMultiCluster = enableMultiCluster;
     }
 
@@ -97,5 +99,22 @@ public class MQDestination {
 
     public void setEnableDynamicQueuePartition(Boolean enableDynamicQueuePartition) {
         this.enableDynamicQueuePartition = enableDynamicQueuePartition;
+    }
+
+
+    public Boolean getEnableDeleteOnFixedClickHouseDB() {
+        return enableDeleteOnFixedClickHouseDB;
+    }
+
+    public void setEnableDeleteOnFixedClickHouseDB(Boolean enableDeleteOnFixedClickHouseDB) {
+        this.enableDeleteOnFixedClickHouseDB = enableDeleteOnFixedClickHouseDB;
+    }
+
+    public String getFixedClickHouseDBName() {
+        return fixedClickHouseDBName;
+    }
+
+    public void setFixedClickHouseDBName(String fixedClickHouseDBName) {
+        this.fixedClickHouseDBName = fixedClickHouseDBName;
     }
 }

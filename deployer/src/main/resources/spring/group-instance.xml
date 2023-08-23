@@ -34,6 +34,8 @@
 		</property>
 		<property name="enableMultiCluster" value="${canal.instance.enableMultiCluster:false}"/>
 		<property name="clusterName" value="${canal.instance.clusterName}"/>
+		<property name="enableDeleteOnFixedClickHouseDB" value="${canal.instance.enableDeleteOnFixedClickHouseDB:false}"/>
+		<property name="fixedClickHouseDBName" value="${canal.instance.fixedClickHouseDBName}"/>
 	</bean>
 
 	<!-- 报警处理类 -->

@@ -10,7 +10,7 @@
            http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd"
 	default-autowire="byName">
 
-	<!-- properties -->
+	<!-- properties，用于从properties文件加载上下文属性并替换xml中的占位符 -->
 	<bean class="com.alibaba.otter.canal.instance.spring.support.PropertyPlaceholderConfigurer" lazy-init="false">
 		<property name="ignoreResourceNotFound" value="true" />
 		<property name="systemPropertiesModeName" value="SYSTEM_PROPERTIES_MODE_OVERRIDE"/><!-- 允许system覆盖 -->

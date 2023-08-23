@@ -25,6 +25,7 @@ public class ClickHouseClient {
             synchronized (ClickHouseClient.class) {
                 if (dataSource == null) {
                     DruidDataSource tmp = new DruidDataSource();
+                    tmp.setDriverClassName("com.clickhouse.jdbc.ClickHouseDriver");
                     tmp.setUrl(url);
                     tmp.setUsername(username);
                     tmp.setPassword(password);

@@ -18,10 +18,6 @@ public interface CanalInstance extends CanalLifeCycle {
 
     String getDestination();
 
-    Boolean getEnableMultiCluster();
-
-    String getClusterName();
-
     CanalEventParser getEventParser();
 
     CanalEventSink getEventSink();
@@ -39,5 +35,12 @@ public interface CanalInstance extends CanalLifeCycle {
 
     CanalMQConfig getMqConfig();
 
+    Boolean getEnableMultiCluster();
+
+    String getClusterName();
+
+    Boolean getEnableDeleteOnFixedClickHouseDB();
+
+    String getFixedClickHouseDBName();
 
 }

@@ -159,6 +159,8 @@ public class CanalMQStarter {
                 canalDestination.setEnableDynamicQueuePartition(mqConfig.getEnableDynamicQueuePartition());
                 canalDestination.setEnableMultiCluster(canalInstance.getEnableMultiCluster());
                 canalDestination.setClusterName(canalInstance.getClusterName());
+                canalDestination.setEnableDeleteOnFixedClickHouseDB(canalInstance.getEnableDeleteOnFixedClickHouseDB());
+                canalDestination.setFixedClickHouseDBName(canalInstance.getFixedClickHouseDBName());
 
                 canalServer.subscribe(clientIdentity);
                 logger.info("## the MQ producer: {} is running now ......", destination);

@@ -69,4 +69,11 @@ public class CanalInstanceWithSpring extends AbstractCanalInstance {
         this.clusterName = clusterName;
     }
 
+    public void setEnableDeleteOnFixedClickHouseDB(Boolean enableDeleteOnFixedClickHouseDB) {
+        this.enableDeleteOnFixedClickHouseDB = enableDeleteOnFixedClickHouseDB;
+    }
+
+    public void setFixedClickHouseDBName(String fixedClickHouseDBName) {
+        this.fixedClickHouseDBName = fixedClickHouseDBName;
+    }
 }

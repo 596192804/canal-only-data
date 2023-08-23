@@ -305,7 +305,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
                                             JSONWriter.Feature.WriteNulls)));
                                 }
                             } else {
-                                execDelete(enableMultiCluster, clusterName, flatMessage);               //非CollapsingMergeTree则需要通过执行SQL来delete
+                                execDelete(mqDestination, flatMessage);               //非CollapsingMergeTree则需要通过执行SQL来delete
                             }
                             break;
                         }
@@ -358,7 +358,7 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
         StringBuilder deleteBuilder = new StringBuilder();
         deleteBuilder.append(deletePrefix);
         for (String pkName : pkNames) {
-            deleteBuilder.append(pkName).append("='" + data.get(pkName) + "' and ");
+            deleteBuilder.append(pkName).append("='").append(data.get(pkName)).append("' and ");
         }
         int len = deleteBuilder.length();
         deleteBuilder.delete(len - 4, len);    //删除末尾多出来的“and ”
@@ -370,16 +370,25 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
      * @Description ReplacingMergeTree表的删除操作
      * @Date 2022/3/11
      */
-    private void execDelete(boolean enableMultiCluster, String clusterName, FlatMessage flatMessagePart) throws SQLException, InterruptedException {
-        try (Connection connection = ClickHouseClient.getDataSourceInstance(this.mqProperties.getCkURL(),
-                this.mqProperties.getCkUsername(),
-                this.mqProperties.getCkPassword()).getConnection(6000)) {
+    private void execDelete(MQDestination mqDestination, FlatMessage flatMessagePart) throws SQLException, InterruptedException {
+        String ckURL = this.mqProperties.getCkURL();
+        String ckUserName = this.mqProperties.getCkUsername();
+        String ckPassword = this.mqProperties.getCkPassword();
+        if (ckURL.equals("") || ckUserName.equals("")) {
+            String errMsg = "请在canal.properties中配置好Clickhouse的连接信息：包括canal.ck.url、canal.ck.username、canal.ck.password!!!";
+            logger.error(errMsg);
+            throw new RuntimeException(errMsg);
+        }
+        try (Connection connection = ClickHouseClient.getDataSourceInstance(ckURL, ckUserName, ckPassword).getConnection(6000)) {
             List<String> pkNames = flatMessagePart.getPkNames();
-            if (enableMultiCluster) {
+            if (Boolean.TRUE.equals(mqDestination.getEnableMultiCluster())) {
                 pkNames.add("cluster");
             }
             List<Map<String, String>> dataList = flatMessagePart.getData();
             String database = flatMessagePart.getDatabase();
+            if (Boolean.TRUE.equals(mqDestination.getEnableDeleteOnFixedClickHouseDB())) {
+                database = mqDestination.getFixedClickHouseDBName();
+            }
             String table = flatMessagePart.getTable();
             if (!ClickHouseClient.isExist(database, table, connection)) {    //判断该表是否存在，若不存在则返回
                 return;
@@ -387,8 +396,8 @@ public class CanalKafkaProducer extends AbstractMQProducer implements CanalMQPro
             String selectPrefix = "select 1 from " + database + "." + table + " where ";
             String deletePrefix = "alter table " + database + "." + table + " delete where ";
             for (Map<String, String> data : dataList) {
-                if (enableMultiCluster) {
-                    data.put("cluster", clusterName);
+                if (Boolean.TRUE.equals(mqDestination.getEnableMultiCluster())) {
+                    data.put("cluster", mqDestination.getClusterName());
                 }
                 String selectSQL = appendCondition(pkNames, selectPrefix, data);
                 String deleteSQL = appendCondition(pkNames, deletePrefix, data);

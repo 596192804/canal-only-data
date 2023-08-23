@@ -36,11 +36,13 @@ public class AbstractCanalInstance extends AbstractCanalLifeCycle implements Can
 
     protected CanalEventParser eventParser;                                      // 解析对应的数据信息
     protected CanalEventSink<List<CanalEntry.Entry>> eventSink;                                                    // 链接parse和store的桥接器
-    protected CanalMetaManager metaManager;                                                  // 消费信息管理器
-    protected CanalAlarmHandler alarmHandler;                                                 // alarm报警机制
-    protected CanalMQConfig mqConfig;                                                     // mq的配置
-    protected Boolean enableMultiCluster;                                                 // 是否针对多集群的同一张表同步
+    protected CanalMetaManager metaManager;                                           // 消费信息管理器
+    protected CanalAlarmHandler alarmHandler;                                          // alarm报警机制
+    protected CanalMQConfig mqConfig;                                              // mq的配置
+    protected Boolean enableMultiCluster;                                          // 是否针对多集群的同一张表同步
     protected String clusterName;                                                  // 集群名
+    protected Boolean enableDeleteOnFixedClickHouseDB;                             // 删除数据时是否只针对Clickhouse的固定数据库而不根据mysql的源数据库
+    protected String fixedClickHouseDBName;                                        // Clickhouse的固定数据库名
 
 
     @Override
@@ -264,4 +266,16 @@ public class AbstractCanalInstance extends AbstractCanalLifeCycle implements Can
     public String getClusterName() {
         return clusterName;
     }
+
+    @Override
+    public Boolean getEnableDeleteOnFixedClickHouseDB() {
+        return enableDeleteOnFixedClickHouseDB;
+    }
+
+    @Override
+    public String getFixedClickHouseDBName() {
+        return fixedClickHouseDBName;
+    }
+
+
 }
